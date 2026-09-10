@@ -433,46 +433,150 @@ static void push_continue(void) {
 }
 
 // ---------------------------------------------------------------------------
-// New puzzle: the class, then the difficulty picker. Like the picker, this list
-// is dropped from under the play window once a puzzle opens.
+// Card chooser: a few big rounded cards, hand drawn and centered, in the home
+// screen's card style (solid green when selected, grey outline otherwise) but
+// with no header and no glyph. Each card carries a title line and a smaller line
+// below it (a size, or solved / total). Used by New puzzle and the difficulty
+// picker. A MenuLayer is avoided because it scrolls even when the rows fit; the
+// cards are bigger than the home's three so two lines of text sit comfortably.
+// ---------------------------------------------------------------------------
+#define CH_MAX    2
+#define CH_PAD    10   // screen edge to the cards (matches the home cards)
+#define CH_GAP    12   // between cards
+#define CH_CARD_H 84   // taller than a home card, room for two lines
+
+typedef struct CardMenu {
+  Window *win;
+  Layer *layer;
+  int n;
+  int sel;
+  char l1[CH_MAX][16];   // title line
+  char l2[CH_MAX][16];   // parenthetical line below it
+  void (*on_select)(int idx);
+  bool armed; int td_x, td_y;
+} CardMenu;
+
+static GRect ch_rect(CardMenu *cm, GRect b, int i) {
+  int total = cm->n * CH_CARD_H + (cm->n - 1) * CH_GAP;
+  int top = (b.size.h - total) / 2;           // centered vertically
+  return GRect(CH_PAD, top + i * (CH_CARD_H + CH_GAP), b.size.w - 2 * CH_PAD, CH_CARD_H);
+}
+static int ch_at(CardMenu *cm, GRect b, int y) {
+  for (int i = 0; i < cm->n; i++) {
+    GRect r = ch_rect(cm, b, i);
+    if (y >= r.origin.y - CH_GAP / 2 && y < r.origin.y + r.size.h + CH_GAP / 2) return i;
+  }
+  return -1;
+}
+static void ch_update(Layer *layer, GContext *ctx) {
+  CardMenu *cm = *(CardMenu **)layer_get_data(layer);
+  GRect b = layer_get_bounds(layer);
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  for (int i = 0; i < cm->n; i++) {
+    GRect r = ch_rect(cm, b, i);
+    bool sel = i == cm->sel;
+    if (sel) {
+      graphics_context_set_fill_color(ctx, GColorJaegerGreen);
+      graphics_fill_rect(ctx, r, 10, GCornersAll);
+    } else {
+      graphics_context_set_stroke_color(ctx, GColorLightGray);
+      graphics_context_set_stroke_width(ctx, 2);
+      graphics_draw_round_rect(ctx, GRect(r.origin.x + 1, r.origin.y + 1, r.size.w - 2, r.size.h - 2), 10);
+      graphics_context_set_stroke_width(ctx, 1);
+    }
+    GColor ink = sel ? GColorWhite : GColorBlack;
+    graphics_context_set_text_color(ctx, ink);
+    int cy = r.origin.y + r.size.h / 2;
+    graphics_draw_text(ctx, cm->l1[i], fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
+                       GRect(r.origin.x, cy - 30, r.size.w, 32),
+                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    if (cm->l2[i][0])
+      graphics_draw_text(ctx, cm->l2[i], fonts_get_system_font(FONT_KEY_GOTHIC_24),
+                         GRect(r.origin.x, cy + 2, r.size.w, 26),
+                         GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  }
+}
+static void ch_sel_set(CardMenu *cm, int i) {
+  if (i < 0 || i >= cm->n || i == cm->sel) return;
+  cm->sel = i;
+  if (cm->layer) layer_mark_dirty(cm->layer);
+}
+static void ch_up(ClickRecognizerRef r, void *ctx)   { CardMenu *cm = ctx; ch_sel_set(cm, (cm->sel - 1 + cm->n) % cm->n); }
+static void ch_down(ClickRecognizerRef r, void *ctx) { CardMenu *cm = ctx; ch_sel_set(cm, (cm->sel + 1) % cm->n); }
+static void ch_click(ClickRecognizerRef r, void *ctx) { CardMenu *cm = ctx; if (cm->on_select) cm->on_select(cm->sel); }
+static void ch_click_config(void *ctx) {
+  window_single_repeating_click_subscribe(BUTTON_ID_UP, 150, ch_up);
+  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 150, ch_down);
+  window_single_click_subscribe(BUTTON_ID_SELECT, ch_click);
+}
+// A finger selects the card under it; lifting without moving opens it (as on Home).
+static void ch_touch(const TouchEvent *ev, void *ctx) {
+  CardMenu *cm = ctx;
+  if (ev->non_navigational || !cm->layer) return;
+  GRect b = layer_get_bounds(cm->layer);
+  if (ev->type == TouchEvent_Touchdown) {
+    cm->armed = true; cm->td_x = ev->x; cm->td_y = ev->y;
+    ch_sel_set(cm, ch_at(cm, b, ev->y)); return;
+  }
+  if (!cm->armed) return;
+  if (ev->type == TouchEvent_PositionUpdate) { ch_sel_set(cm, ch_at(cm, b, ev->y)); return; }
+  if (ev->type != TouchEvent_Liftoff) return;
+  cm->armed = false;
+  int dx = ev->x - cm->td_x, dy = ev->y - cm->td_y;
+  if (dx < 0) dx = -dx;
+  if (dy < 0) dy = -dy;
+  if (dx < 12 && dy < 12 && ch_at(cm, b, ev->y) == cm->sel && cm->on_select) cm->on_select(cm->sel);
+}
+static void ch_load(Window *w, CardMenu *cm) {
+  Layer *root = window_get_root_layer(w);
+  cm->win = w;
+  cm->layer = layer_create_with_data(layer_get_bounds(root), sizeof(CardMenu *));
+  *(CardMenu **)layer_get_data(cm->layer) = cm;
+  layer_set_update_proc(cm->layer, ch_update);
+  layer_add_child(root, cm->layer);
+  window_set_click_config_provider_with_context(w, ch_click_config, cm);
+}
+static void ch_appear(CardMenu *cm) {
+  cm->armed = false;
+  if (touch_service_is_enabled()) touch_service_subscribe(ch_touch, cm);
+  if (cm->layer) layer_mark_dirty(cm->layer);
+}
+static void ch_disappear(void) { touch_service_unsubscribe(); }
+static void ch_unload(CardMenu *cm) {
+  if (cm->layer) { layer_destroy(cm->layer); cm->layer = NULL; }
+}
+
+// ---------------------------------------------------------------------------
+// New puzzle: pick the class (Mini / Regular), then the difficulty picker. The
+// window is dropped from under the play window once a puzzle opens.
 // ---------------------------------------------------------------------------
 static Window *s_new_win;
-static MenuLayer *s_new_menu;
-static ListNav s_new_nav;
+static CardMenu s_new_cm;
 static void push_picker(int cls);
 
-static uint16_t new_rows(MenuLayer *m, uint16_t sec, void *c) { return 2; }
-static int16_t new_row_h(MenuLayer *m, MenuIndex *i, void *c) { return ROW_H; }
-static int16_t new_hdr_h(MenuLayer *m, uint16_t sec, void *c) { return HDR_H; }
-static void new_hdr(GContext *ctx, const Layer *cell, uint16_t sec, void *c) { hdr_draw(ctx, cell, "NEW PUZZLE"); }
-static void new_draw(GContext *ctx, const Layer *cell, MenuIndex *i, void *c) {
-  if (i->row == 0) cell_draw(ctx, cell, "Mini (7x7)", "A few minutes");
-  else cell_draw(ctx, cell, "Regular (15x15)", "A bigger sit-down");
-}
-static void new_select(MenuLayer *m, MenuIndex *i, void *c) {
-  push_picker(i->row == 0 ? CLS_MINI : CLS_REGULAR);
-}
+static void new_on_select(int idx) { push_picker(idx == 0 ? CLS_MINI : CLS_REGULAR); }
 static void new_load(Window *w) {
-  Layer *root = window_get_root_layer(w);
-  s_new_menu = menu_layer_create(layer_get_bounds(root));
-  menu_layer_set_callbacks(s_new_menu, NULL, (MenuLayerCallbacks){
-    .get_num_rows = new_rows, .draw_row = new_draw, .get_cell_height = new_row_h,
-    .get_header_height = new_hdr_h, .draw_header = new_hdr,
-    .select_click = new_select });
-  menu_layer_set_normal_colors(s_new_menu, GColorWhite, GColorBlack);
-  menu_layer_set_highlight_colors(s_new_menu, GColorJaegerGreen, GColorWhite);
-  s_new_nav = (ListNav){ .menu = s_new_menu, .sections = NULL, .rows = new_rows, .select = new_select };
-  nav_attach(w, &s_new_nav);
-  layer_add_child(root, menu_layer_get_layer(s_new_menu));
+  s_new_cm.n = 2;
+  s_new_cm.sel = 0;
+  s_new_cm.on_select = new_on_select;
+  snprintf(s_new_cm.l1[0], sizeof(s_new_cm.l1[0]), "Mini");
+  snprintf(s_new_cm.l2[0], sizeof(s_new_cm.l2[0]), "(7x7)");
+  snprintf(s_new_cm.l1[1], sizeof(s_new_cm.l1[1]), "Regular");
+  snprintf(s_new_cm.l2[1], sizeof(s_new_cm.l2[1]), "(15x15)");
+  ch_load(w, &s_new_cm);
 }
+static void new_appear(Window *w)    { ch_appear(&s_new_cm); }
+static void new_disappear(Window *w) { ch_disappear(); }
 static void new_unload(Window *w) {
-  menu_layer_destroy(s_new_menu); s_new_menu = NULL;
+  ch_unload(&s_new_cm);
   window_destroy(s_new_win); s_new_win = NULL;
 }
 static void push_new(void) {
   if (s_new_win) return;
   s_new_win = window_create();
-  window_set_window_handlers(s_new_win, (WindowHandlers){ .load = new_load, .unload = new_unload });
+  window_set_window_handlers(s_new_win, (WindowHandlers){
+    .load = new_load, .appear = new_appear, .disappear = new_disappear, .unload = new_unload });
   window_stack_push(s_new_win, true);
 }
 
@@ -636,69 +740,51 @@ static void push_settings(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Difficulty picker (for one class)
+// Difficulty picker (for one class): two big cards, Peaceful / Challenging, each
+// showing solved / total for that shelf. Selecting opens a random unplayed
+// bundled puzzle of that class and tier, or replays a solved one and says so.
 // ---------------------------------------------------------------------------
 static Window *s_pick_win;
-static MenuLayer *s_pick_menu;
-static ListNav s_pick_nav;
+static CardMenu s_pick_cm;
 static int s_pick_cls;
 static int s_totals[2][2];       // bundled puzzles that exist per class x tier ...
 static int s_solved[2][2];       // ... and how many of them the player has solved
-static const char *TIER_DESC[2] = { "Gentle, straight clues", "Tricky, misdirecting clues" };
 
-static uint16_t pick_rows(MenuLayer *m, uint16_t sec, void *c) { return 2; }
-static int16_t pick_row_h(MenuLayer *m, MenuIndex *i, void *c) { return ROW_H; }
-static int16_t pick_hdr_h(MenuLayer *m, uint16_t sec, void *c) { return HDR_H; }
-static void pick_hdr(GContext *ctx, const Layer *cell, uint16_t sec, void *c) {
-  hdr_draw(ctx, cell, "CHOOSE DIFFICULTY");
-}
-static void pick_draw(GContext *ctx, const Layer *cell, MenuIndex *i, void *c) {
-  // A tier with no bundled puzzles at all reads "Coming soon"; otherwise its
-  // one-line description. (Solving them all does not empty the pool: the pick
-  // falls back to replaying a solved puzzle.)
-  int total = s_totals[s_pick_cls][i->row];
-  char count[24] = "";
-  if (total > 0) snprintf(count, sizeof(count), "%d/%d", s_solved[s_pick_cls][i->row], total);
-  cell_draw_figure(ctx, cell, TIER_LABEL[i->row], total == 0 ? "Coming soon" : TIER_DESC[i->row], total > 0 ? count : NULL);
-}
-static void pick_select(MenuLayer *m, MenuIndex *i, void *c) {
-  g->set.tier = i->row;
+static void pick_on_select(int idx) {
+  g->set.tier = idx;
   store_save_settings();
   bool replay;
-  int b = puzzle_pick_bundled(s_pick_cls, i->row, &replay);
+  int b = puzzle_pick_bundled(s_pick_cls, idx, &replay);
   if (b >= 0) {
     play_open_bundled(b);
     if (replay) play_banner("All done. Replaying", GColorLightGray, GColorBlack);
   } else { play_open_loading(); play_load_failed("No puzzle yet. Press BACK."); }
   // The play window (or the loading screen) is now on top; drop the picker and
-  // the New puzzle list beneath it so BACK from the puzzle lands on Home.
+  // the New puzzle window beneath it so BACK from the puzzle lands on Home.
   if (s_pick_win) window_stack_remove(s_pick_win, false);
   if (s_new_win) window_stack_remove(s_new_win, false);
+}
+static void pick_load(Window *w) {
+  s_pick_cm.n = 2;
+  s_pick_cm.on_select = pick_on_select;
+  ch_load(w, &s_pick_cm);
 }
 static void pick_appear(Window *w) {
   for (int c = 0; c < 2; c++)
     for (int t = 0; t < 2; t++) { s_totals[c][t] = puzzle_pool_total(c, t); s_solved[c][t] = puzzle_pool_solved(c, t); }
-  if (s_pick_menu) {
-    menu_layer_reload_data(s_pick_menu);
-    int sel = g->set.tier > 1 ? 1 : g->set.tier;
-    menu_layer_set_selected_index(s_pick_menu, (MenuIndex){ 0, sel }, MenuRowAlignCenter, false);
+  // A tier with no bundled puzzles reads "Coming soon"; otherwise solved / total.
+  for (int t = 0; t < 2; t++) {
+    snprintf(s_pick_cm.l1[t], sizeof(s_pick_cm.l1[t]), "%s", TIER_LABEL[t]);
+    int total = s_totals[s_pick_cls][t];
+    if (total > 0) snprintf(s_pick_cm.l2[t], sizeof(s_pick_cm.l2[t]), "(%d/%d)", s_solved[s_pick_cls][t], total);
+    else snprintf(s_pick_cm.l2[t], sizeof(s_pick_cm.l2[t]), "Coming soon");
   }
+  s_pick_cm.sel = g->set.tier > 1 ? 1 : g->set.tier;
+  ch_appear(&s_pick_cm);
 }
-static void pick_load(Window *w) {
-  Layer *root = window_get_root_layer(w);
-  s_pick_menu = menu_layer_create(layer_get_bounds(root));
-  menu_layer_set_callbacks(s_pick_menu, NULL, (MenuLayerCallbacks){
-    .get_num_rows = pick_rows, .draw_row = pick_draw, .get_cell_height = pick_row_h,
-    .get_header_height = pick_hdr_h, .draw_header = pick_hdr,
-    .select_click = pick_select });
-  menu_layer_set_normal_colors(s_pick_menu, GColorWhite, GColorBlack);
-  menu_layer_set_highlight_colors(s_pick_menu, GColorJaegerGreen, GColorWhite);
-  s_pick_nav = (ListNav){ .menu = s_pick_menu, .sections = NULL, .rows = pick_rows, .select = pick_select };
-  nav_attach(w, &s_pick_nav);
-  layer_add_child(root, menu_layer_get_layer(s_pick_menu));
-}
+static void pick_disappear(Window *w) { ch_disappear(); }
 static void pick_unload(Window *w) {
-  menu_layer_destroy(s_pick_menu); s_pick_menu = NULL;
+  ch_unload(&s_pick_cm);
   window_destroy(s_pick_win); s_pick_win = NULL;
 }
 static void push_picker(int cls) {
@@ -706,7 +792,7 @@ static void push_picker(int cls) {
   s_pick_cls = cls;
   s_pick_win = window_create();
   window_set_window_handlers(s_pick_win, (WindowHandlers){
-    .load = pick_load, .appear = pick_appear, .unload = pick_unload });
+    .load = pick_load, .appear = pick_appear, .disappear = pick_disappear, .unload = pick_unload });
   window_stack_push(s_pick_win, true);
 }
 
