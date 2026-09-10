@@ -8,8 +8,7 @@ An offline, voice-first crossword solver for the **Pebble Time 2** (emery).
 
 A set of puzzles lives on the watch, so you can solve anywhere, phone or no
 phone. The screen shows **one clue at a time** with its answer in boxes; you
-**speak** an answer to fill it, or **type** by dragging across the clue. Answers
-are never handed to you.
+**speak** an answer to fill it, or **type** by dragging across the clue.
 
 <table>
   <tr>
@@ -35,15 +34,15 @@ pebble install --emulator emery           # the emulator
 
 **Choose a puzzle** from the home screen's three cards:
 
-- **Continue** — everything you've started, with the time spent and how much is
+- **Continue**: everything you've started, with the time spent and how much is
   filled. The watch keeps your eight most recent.
-- **New puzzle** — Mini (7x7) or Regular (15x15), then **Peaceful** (direct
+- **New puzzle**: Mini (7x7) or Regular (15x15), then **Peaceful** (direct
   clues) or **Challenging** (trickier, misdirecting clues).
-- **Settings** — how answers are checked, vibration, and the typing controls.
+- **Settings**: how answers are checked, vibration, and the typing controls.
 
-**The controls are the same everywhere — no modes.** One gesture, one meaning:
+**The controls are the same everywhere, no modes.** One gesture, one meaning:
 
-| Do this | And it |
+|  |  |
 | --- | --- |
 | **SELECT** (press) | Speak the answer |
 | **SELECT** (hold) | Menu: clear the word, all clues, reveal the word, or abandon |
@@ -61,8 +60,7 @@ time from Settings.
 ### Speaking answers
 
 Voice uses Pebble's free dictation, so it needs the phone connected. Say the
-word, or spell it out ("bee oh why", "bravo oscar yankee", "B as in boy"). No
-phone? Just drag to type instead.
+word, or spell it out ("bee oh why"). No phone? Just drag to type instead.
 
 ### Typing answers
 
@@ -77,10 +75,10 @@ where in the alphabet you are.
 
 Set in Settings:
 
-- **After every word** — a word is checked the moment it's complete. Right, it
+- **After every word**: a word is checked the moment it's complete. Right, it
   locks and flashes green; wrong, the mistaken squares turn red. Up/Down then
   step you through the words still to fix.
-- **When the grid is full** — nothing is marked until the last square goes in,
+- **When the grid is full**: nothing is marked until the last square goes in,
   then you get your time, or the wrong squares to fix.
 
 Either way, when everything's right you get a full-screen **SOLVED!** with your
@@ -88,7 +86,7 @@ time.
 
 ## The puzzles
 
-The watch ships **200 original puzzles** — 100 minis (7x7) and 100 regulars
+The watch ships **200 original puzzles**: 100 minis (7x7) and 100 regulars
 (15x15), split evenly between Peaceful and Challenging (50 of each per size).
 No answer repeats more than a handful of times across the set. Every grid is
 generated and every clue is written for this project; nothing is copied from a
@@ -130,6 +128,4 @@ GPL-3.0), with thanks:
 
 Because the bundled grids derive from that GPL-3.0 wordlist, the `.xd` files and
 the packed blob carry GPL-3.0 terms if redistributed. All **clues** are this
-project's own. Answer familiarity is scored, and clues are sanity-checked,
-against Saul Pwanson's [xd clue corpus](https://xd.saul.pw/data) at generation
-time only; that corpus is not redistributed here.
+project's own.
