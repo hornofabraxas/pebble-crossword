@@ -2,14 +2,17 @@
 
 Player-facing changes. Versions are `major.minor`.
 
+## v1.1
+
+- **Cleaner puzzle menus.** Choosing Mini or Regular, then Peaceful or
+  Challenging, now shows two big rounded cards centered on the screen (the
+  difficulty cards show how many of each you have solved) instead of a list.
+
 ## v1.0
 
 - **1.0.** The first full release: 200 original puzzles, voice or type input, and
   the modeless controls settled in.
 - **The app is now "Crosswords."** The launcher entry reads Crosswords, plural.
-- **Cleaner puzzle menus.** Choosing Mini or Regular, then Peaceful or
-  Challenging, now shows two big rounded cards centered on the screen (the
-  difficulty cards show how many of each you have solved) instead of a list.
 
 ## v0.38
 
