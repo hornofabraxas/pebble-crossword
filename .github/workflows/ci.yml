@@ -1,0 +1,28 @@
+name: ci
+
+# Build gate on every push to main and every pull request: unit-tests the pkjs
+# and the host C modules, checks the puzzle bundle is in sync with its sources,
+# compiles the Pebble app (emery), and enforces the app-image ceiling. This is the
+# server-side copy of the local pre-push hook, so a `git push --no-verify` or a
+# fresh clone without scripts/setup-hooks.sh can't land a non-building tree.
+#
+# The build steps live in the .github/actions/pebble-build composite action,
+# shared with release.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build Pebble app
+        uses: ./.github/actions/pebble-build

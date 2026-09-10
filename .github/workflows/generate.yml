@@ -1,0 +1,169 @@
+name: generate-puzzles
+
+# Fan-out candidate-fill generation for the cap-5 / 200-puzzle rebuild. Pure
+# Python (gen/screen/select_cap on the committed fam.json) - no corpus, no
+# API, no Claude. Manual trigger only. Results come back as artifacts; CI never
+# writes to the repo (permissions: contents: read). Everything runs on the
+# standard ubuntu-latest runner, which is unlimited-free on a public repo, so
+# this cannot incur charges. Clue writing happens separately, off CI.
+#
+# Each matrix job screens many masks with soft saturation steering seeded from
+# the current bundle's answer ledger (so new grids avoid answers already at the
+# cap), then uploads its clean fills. The assemble job merges them and reports,
+# via select_cap.py, how large a cap-5 set is achievable from existing + new.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reg_masks:
+        description: fresh masks per regular job
+        default: "40"
+      reg_seeds:
+        description: fill seeds per mask (regular)
+        default: "2"
+      reg_budget:
+        description: node budget per regular fill
+        default: "60000"
+      reg_tlimit:
+        description: seconds per regular fill
+        default: "15"
+      mini_want:
+        description: target clean fills per mini job
+        default: "30"
+      soft_cap:
+        description: soft saturation cap (answers at/over this are avoided)
+        default: "5"
+      sat_penalty:
+        description: saturation penalty strength
+        default: "60"
+      mask_threes:
+        description: max 3-letter slots per generated mask
+        default: "7"
+      mask_fours:
+        description: max 4-letter slots per generated mask (lower = longer entries)
+        default: "99"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: generate-puzzles
+  cancel-in-progress: false
+
+jobs:
+  regulars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Seed ledger (accumulated if present, else from the bundle)
+        run: |
+          if [ -f tools/lab/ledger_seed.json ]; then
+            cp tools/lab/ledger_seed.json tools/lab/ledger.json
+            echo "seeded from committed ledger_seed.json (accumulated)"
+          else
+            python3 tools/lab/dump_ledger.py tools/lab/ledger.json
+          fi
+      - name: Screen regular masks (steered)
+        working-directory: tools/lab
+        env:
+          LAB_SOFT_CAP: ${{ github.event.inputs.soft_cap }}
+          LAB_SAT_PENALTY: ${{ github.event.inputs.sat_penalty }}
+          LAB_MASK_THREES: ${{ github.event.inputs.mask_threes }}
+          LAB_MASK_FOURS: ${{ github.event.inputs.mask_fours }}
+          LAB_LEDGER: ledger.json
+          SCREEN_NO_EXISTING: "1"
+          SCREEN_SEED: ${{ matrix.idx }}${{ github.run_number }}
+          SCREEN_SUFFIX: _r${{ matrix.idx }}
+        run: |
+          python3 screen.py regular \
+            ${{ github.event.inputs.reg_masks }} 4 ${{ github.event.inputs.reg_seeds }} \
+            ${{ github.event.inputs.reg_budget }} ${{ github.event.inputs.reg_tlimit }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reg-${{ matrix.idx }}
+          path: tools/lab/screen_regular_r${{ matrix.idx }}.json
+          if-no-files-found: warn
+
+  minis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Seed ledger (accumulated if present, else from the bundle)
+        run: |
+          if [ -f tools/lab/ledger_seed.json ]; then
+            cp tools/lab/ledger_seed.json tools/lab/ledger.json
+            echo "seeded from committed ledger_seed.json (accumulated)"
+          else
+            python3 tools/lab/dump_ledger.py tools/lab/ledger.json
+          fi
+      - name: Screen mini masks (steered)
+        working-directory: tools/lab
+        env:
+          LAB_SOFT_CAP: ${{ github.event.inputs.soft_cap }}
+          LAB_SAT_PENALTY: ${{ github.event.inputs.sat_penalty }}
+          LAB_LEDGER: ledger.json
+          SCREEN_SEED: ${{ matrix.idx }}${{ github.run_number }}
+          SCREEN_SUFFIX: _m${{ matrix.idx }}
+        run: |
+          python3 screen.py mini \
+            ${{ github.event.inputs.mini_want }} 4 2 45000 10 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mini-${{ matrix.idx }}
+          path: tools/lab/screen_mini_m${{ matrix.idx }}.json
+          if-no-files-found: warn
+
+  assemble:
+    needs: [regulars, minis]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Collect all candidate fills into tools/lab
+        uses: actions/download-artifact@v4
+        with:
+          path: tools/lab
+          merge-multiple: true
+      - name: Report cap-5 feasibility from existing + candidates
+        working-directory: tools/lab
+        run: |
+          echo "### candidate pool" | tee report.txt
+          ls -1 screen_regular_r*.json screen_mini_m*.json 2>/dev/null | tee -a report.txt || true
+          echo "" | tee -a report.txt
+          echo "### cap-5 select (all)" | tee -a report.txt
+          python3 select_cap.py --cap 5 | tee -a report.txt
+          echo "" | tee -a report.txt
+          echo "### cap-5 regulars only" | tee -a report.txt
+          python3 select_cap.py --cap 5 --only regular | tee -a report.txt
+          echo "" | tee -a report.txt
+          echo "### cap-5 minis only" | tee -a report.txt
+          python3 select_cap.py --cap 5 --only mini | tee -a report.txt
+      - name: Upload merged candidate pool + report
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-pool
+          path: |
+            tools/lab/screen_regular_r*.json
+            tools/lab/screen_mini_m*.json
+            tools/lab/report.txt
+          if-no-files-found: warn

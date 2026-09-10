@@ -1,0 +1,18 @@
+build/
+node_modules/
+*.pbw
+*.log
+.DS_Store
+.lock-waf_darwin_build
+pebble_screenshot_*.png
+
+# Raw crossword corpus (large, sourced separately; never committed).
+corpus/
+tools/corpus/
+*.zip
+
+__pycache__/
+tools/lab/fills_*.json
+tools/lab/screen_*.json
+tools/lab/run*.log
+tools/lab/.venv/

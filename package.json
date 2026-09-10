@@ -1,0 +1,49 @@
+{
+  "name": "pebble-crossword",
+  "author": "OmgSlayKween",
+  "version": "1.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "pebble": {
+    "displayName": "Crosswords",
+    "uuid": "dc5b1b56-6457-4012-856c-2a193e1581e1",
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "emery"
+    ],
+    "enableMultiJS": true,
+    "watchapp": {
+      "watchface": false,
+      "hiddenApp": false,
+      "onlyShownOnCommunication": false
+    },
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MENU_ICON",
+          "file": "images/menu_icon.png",
+          "menuIcon": true
+        },
+        {
+          "type": "raw",
+          "name": "PUZZLES",
+          "file": "data/puzzles.bin"
+        }
+      ]
+    },
+    "messageKeys": [
+      "CMD",
+      "MODE",
+      "SEQ",
+      "TRANSCRIPT",
+      "ANSWER",
+      "LEN",
+      "RESP_LETTERS",
+      "RESP_STATUS",
+      "RESP_CONF"
+    ]
+  }
+}

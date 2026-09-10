@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  :root{--bg:#f4f1e8;--ink:#141414;--muted:#6b6459;--green:#00aa00;--white:#fff;}
+  html,body{margin:0;padding:0;background:transparent;
+    font-family:"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  #b{position:absolute;top:0;left:0;width:720px;height:320px;background:var(--bg);
+     display:flex;align-items:center;overflow:hidden}
+  /* left crossword panel */
+  .panel{width:300px;height:320px;display:flex;align-items:center;justify-content:center;flex:none}
+  .grid{width:236px;height:236px;display:grid;grid-template-columns:repeat(5,1fr);
+    grid-template-rows:repeat(5,1fr);gap:5px;background:var(--ink);padding:5px;box-sizing:border-box;
+    box-shadow:0 8px 22px rgba(20,20,20,.18)}
+  .c{background:var(--white);display:flex;align-items:center;justify-content:center;
+     font-weight:800;color:var(--ink);font-size:26px}
+  .b{background:var(--ink)}
+  .g{background:var(--green);color:#fff}
+  /* right text block */
+  .txt{flex:1;padding:0 44px 0 8px}
+  .h1{font-weight:800;font-size:72px;letter-spacing:-1.5px;line-height:.98;color:var(--ink)}
+  .h1 .d{color:var(--green)}
+  .h2{margin-top:12px;font-weight:700;font-size:26px;letter-spacing:5px;color:var(--ink);text-transform:uppercase}
+  .rule{margin:18px 0 14px;width:120px;height:4px;background:var(--green);border-radius:2px}
+  .stat{font-weight:600;font-size:23px;color:var(--muted);letter-spacing:.3px}
+  .stat b{color:var(--ink);font-weight:800}
+</style></head><body>
+<div id="b">
+  <div class="panel"><div class="grid" id="g"></div></div>
+  <div class="txt">
+    <div class="h1"><span class="d">Down</span>Time</div>
+    <div class="h2">Voice Crosswords</div>
+    <div class="rule"></div>
+    <div class="stat"><b>200</b> puzzles &nbsp;&middot;&nbsp; Over <b>9,000</b> clues</div>
+  </div>
+</div>
+<script>
+  const black=new Set([4,6,8,16,18,20]); const green=0;
+  const letters={0:"D",5:"O",10:"W",15:"N",21:"T",22:"I",23:"M",24:"E"};
+  const g=document.getElementById('g');
+  for(let i=0;i<25;i++){const d=document.createElement('div');
+    if(black.has(i))d.className="c b";
+    else if(i===green){d.className="c g";d.textContent=letters[i]||"";}
+    else{d.className="c";if(letters[i])d.textContent=letters[i];}
+    g.appendChild(d);}
+</script></body></html>

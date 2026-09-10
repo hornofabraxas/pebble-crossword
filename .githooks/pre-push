@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# pre-push — local gate before code reaches GitHub.
+# Unit-tests the pkjs and the host C modules, checks the puzzle bundle is
+# packed from the current .xd files, and compiles the watch app so a
+# non-building tree never leaves the machine.
+#
+# Enabled via: bash scripts/setup-hooks.sh   (git config core.hooksPath .githooks)
+# Bypass in a real emergency with:  git push --no-verify
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+if command -v node >/dev/null 2>&1; then
+  echo "pre-push: syntax-check pkjs…"
+  node --check src/pkjs/index.js
+  if [ -f test/test_pkjs.js ]; then
+    echo "pre-push: pkjs tests…"
+    node test/test_pkjs.js
+  fi
+fi
+
+echo "pre-push: host C tests…"
+bash test/host/run.sh
+
+echo "pre-push: bundle in sync…"
+python3 tools/xd2blob.py puzzles "${TMPDIR:-/tmp}/pebble-crossword-check.bin" >/dev/null
+cmp resources/data/puzzles.bin "${TMPDIR:-/tmp}/pebble-crossword-check.bin" \
+  || { echo "pre-push: resources/data/puzzles.bin is stale; run python3 tools/xd2blob.py" >&2; exit 1; }
+
+echo "pre-push: clues valid and unique…"
+python3 tools/lab/check_clues.py tools/lab/lab_spec.py >/dev/null \
+  || { echo "pre-push: check_clues found errors; run python3 tools/lab/check_clues.py tools/lab/lab_spec.py" >&2; exit 1; }
+
+echo "pre-push: answer-repeat caps…"
+python3 tools/lab/check_caps.py tools/lab/lab_spec.py >/dev/null \
+  || { echo "pre-push: check_caps found cap violations; run python3 tools/lab/check_caps.py tools/lab/lab_spec.py" >&2; exit 1; }
+
+if command -v pebble >/dev/null 2>&1; then
+  echo "pre-push: pebble build…"
+  pebble build >/dev/null
+  echo "pre-push: app-image size…"
+  bash scripts/check-appimage-size.sh build/emery/pebble-app.elf
+else
+  echo "pre-push: pebble not on PATH, skipping build (CI will still gate it)."
+fi
+
+echo "pre-push: OK."

@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  :root{ --ink:#141414; --green:#00aa00; --white:#ffffff; }
+  html,body{margin:0;padding:0;background:transparent}
+  #tile{position:absolute;top:0;left:0;background:var(--white);
+        box-shadow:0 0 0 0.11em var(--ink) inset;display:flex;align-items:center;justify-content:center;
+        border-radius:0.22em}
+  .grid{width:0.70em;height:0.70em;display:grid;grid-template-columns:repeat(5,1fr);
+        grid-template-rows:repeat(5,1fr);gap:0.017em;background:var(--ink);
+        padding:0.017em;box-sizing:border-box}
+  .c{background:var(--white);display:flex;align-items:center;justify-content:center;
+     font-family:"Helvetica Neue",Arial,sans-serif;font-weight:800;color:var(--ink);
+     font-size:0.086em;line-height:1}
+  .b{background:var(--ink)}
+  .g{background:var(--green);color:#fff}
+  body.small .c{font-size:0}
+</style></head><body><div id="tile"><div class="grid" id="g"></div></div>
+<script>
+  const q=new URLSearchParams(location.search);
+  const S=parseInt(q.get('s')||'144',10);
+  document.documentElement.style.fontSize=S+'px';   // 1em = S px
+  const tile=document.getElementById('tile'); tile.style.width=S+'px'; tile.style.height=S+'px';
+  if(q.has('small')) document.body.classList.add('small');
+  const black=new Set([4,6,8,16,18,20]); const green=0;
+  const letters={0:"D",5:"O",10:"W",15:"N",21:"T",22:"I",23:"M",24:"E"};
+  const g=document.getElementById('g');
+  for(let i=0;i<25;i++){const d=document.createElement('div');
+    if(black.has(i)) d.className="c b";
+    else if(i===green){d.className="c g"; d.textContent=letters[i]||"";}
+    else{d.className="c"; if(letters[i]) d.textContent=letters[i];}
+    g.appendChild(d);}
+</script></body></html>

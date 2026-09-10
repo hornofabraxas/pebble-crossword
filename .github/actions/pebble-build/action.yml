@@ -1,0 +1,99 @@
+name: Build Pebble app
+description: >
+  Syntax-check and unit-test the pkjs, run the host C tests, check the puzzle
+  bundle and .xd files are in sync with their sources, install the Pebble
+  toolchain and SDK (SDK cached across runs), build for emery, and enforce the
+  app-image ceiling. Shared by ci.yml and release.yml so the build steps live in
+  one place.
+
+inputs:
+  sdk-version:
+    description: Pebble SDK version to install and cache (pinned for reproducible, cacheable builds).
+    default: "4.33.1"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+
+    - name: Syntax-check pkjs
+      shell: bash
+      run: node --check src/pkjs/index.js
+
+    - name: Run pkjs tests
+      shell: bash
+      run: node test/test_pkjs.js
+
+    - name: Host unit tests (scrubber, persist)
+      shell: bash
+      run: bash test/host/run.sh
+
+    - name: Bundle in sync with puzzles/*.xd
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 tools/xd2blob.py puzzles "$RUNNER_TEMP/puzzles.bin"
+        cmp resources/data/puzzles.bin "$RUNNER_TEMP/puzzles.bin" \
+          || { echo "::error::resources/data/puzzles.bin is stale: run python3 tools/xd2blob.py" >&2; exit 1; }
+
+    - name: puzzles/*.xd in sync with tools/lab/lab_spec.py
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 tools/lab/emit.py >/dev/null
+        git diff --exit-code -- puzzles \
+          || { echo "::error::puzzles/*.xd differ from lab_spec.py: run python3 tools/lab/emit.py" >&2; exit 1; }
+
+    - name: Clues valid and unique (structural + DUP-CLUE gate)
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 tools/lab/check_clues.py tools/lab/lab_spec.py \
+          || { echo "::error::check_clues found errors (missing/answer-in/too-long/duplicate clue strings)" >&2; exit 1; }
+
+    - name: Answer-repeat caps (minis <=5 bundle-wide, regulars <=6 per shelf)
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 tools/lab/check_caps.py tools/lab/lab_spec.py \
+          || { echo "::error::check_caps found answer-repeat cap violations" >&2; exit 1; }
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.0.1
+      with:
+        enable-cache: false
+
+    - name: Install Pebble toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        uv tool install pebble-tool
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Cache Pebble SDK
+      uses: actions/cache@v6
+      with:
+        path: ~/.local/share/pebble-sdk
+        key: pebble-sdk-${{ runner.os }}-${{ inputs.sdk-version }}
+
+    - name: Install Pebble SDK (${{ inputs.sdk-version }})
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -d "$HOME/.local/share/pebble-sdk/SDKs/${{ inputs.sdk-version }}" ]; then
+          echo "Pebble SDK ${{ inputs.sdk-version }} restored from cache; skipping install."
+        else
+          pebble sdk install "${{ inputs.sdk-version }}"
+        fi
+        pebble sdk list
+
+    - name: Build (emery)
+      shell: bash
+      run: pebble build
+
+    - name: Check app-image size ceiling
+      shell: bash
+      run: bash scripts/check-appimage-size.sh build/emery/pebble-app.elf
