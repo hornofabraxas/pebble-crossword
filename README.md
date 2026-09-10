@@ -1,4 +1,8 @@
-# Crossword
+<p align="center">
+  <img src="store-assets/banner-720x320.png" alt="DownTime: Voice Crosswords for the Pebble Time 2" width="720">
+</p>
+
+# DownTime: Voice Crosswords for Pebble Time 2
 
 An offline, voice-first crossword solver for the **Pebble Time 2** (emery).
 
