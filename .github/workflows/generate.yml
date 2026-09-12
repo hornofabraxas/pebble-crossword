@@ -86,7 +86,7 @@ jobs:
           python3 screen.py regular \
             ${{ github.event.inputs.reg_masks }} 4 ${{ github.event.inputs.reg_seeds }} \
             ${{ github.event.inputs.reg_budget }} ${{ github.event.inputs.reg_tlimit }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: reg-${{ matrix.idx }}
           path: tools/lab/screen_regular_r${{ matrix.idx }}.json
@@ -123,7 +123,7 @@ jobs:
         run: |
           python3 screen.py mini \
             ${{ github.event.inputs.mini_want }} 4 2 45000 10 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mini-${{ matrix.idx }}
           path: tools/lab/screen_mini_m${{ matrix.idx }}.json
@@ -159,7 +159,7 @@ jobs:
           echo "### cap-5 minis only" | tee -a report.txt
           python3 select_cap.py --cap 5 --only mini | tee -a report.txt
       - name: Upload merged candidate pool + report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: candidate-pool
           path: |
