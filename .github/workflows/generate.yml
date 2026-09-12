@@ -60,7 +60,7 @@ jobs:
         idx: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Seed ledger (accumulated if present, else from the bundle)
@@ -101,7 +101,7 @@ jobs:
         idx: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Seed ledger (accumulated if present, else from the bundle)
@@ -136,7 +136,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Collect all candidate fills into tools/lab
