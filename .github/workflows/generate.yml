@@ -140,7 +140,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Collect all candidate fills into tools/lab
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: tools/lab
           merge-multiple: true
